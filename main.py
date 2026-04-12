@@ -515,11 +515,18 @@ def gen_pdf_interactive():
 # ── Email 發送 ────────────────────────────────────────────────────────────────
 def load_cfg():
     cfg={}
+    # 優先讀取環境變數（Render 雲端部署支援）
+    import os as _os
+    for key in ["SENDER_EMAIL","SENDER_PASSWORD","SENDER_NAME"]:
+        val=_os.environ.get(key)
+        if val: cfg[key]=val
+    # 本機 config.env 補充（不覆蓋環境變數）
     if CONFIG_FILE.exists():
         for line in CONFIG_FILE.read_text(encoding="utf-8").splitlines():
             line=line.strip()
             if line and not line.startswith("#") and "=" in line:
-                k,v=line.split("=",1); cfg[k.strip()]=v.strip()
+                k,v=line.split("=",1)
+                if k.strip() not in cfg: cfg[k.strip()]=v.strip()
     return cfg
 
 def send_email(to, subj, body, pdf_path=None, quiet=False):
