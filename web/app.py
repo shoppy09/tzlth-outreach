@@ -41,8 +41,12 @@ BASE_DIR = Path(__file__).parent.parent
 # ── 輔助函數 ──────────────────────────────────────────────────────────────────
 def df_to_records(df):
     df = df.copy()
-    for col in df.columns:
-        df[col] = df[col].where(df[col].notna(), None)
+    # 字串欄位：NaN → '' （避免 Jinja2 顯示 "nan"）
+    obj_cols = df.select_dtypes(include='object').columns
+    df[obj_cols] = df[obj_cols].fillna('')
+    # 數值欄位：NaN → None
+    for col in df.select_dtypes(exclude='object').columns:
+        df[col] = df[col].where(df[col].notna(), other=None)
     return df.to_dict(orient="records")
 
 def get_stats():
