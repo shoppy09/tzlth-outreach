@@ -18,13 +18,42 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-# ── 字型設定 ──────────────────────────────────────────────────────────────────
-FONT_PATH      = "C:/Windows/Fonts/msjh.ttc"
-FONT_BOLD_PATH = "C:/Windows/Fonts/msjhbd.ttc"
+# ── 字型設定（Windows / Linux 自動偵測）─────────────────────────────────────
+_FONT_CANDIDATES = [
+    # Windows
+    ("C:/Windows/Fonts/msjh.ttc",  "C:/Windows/Fonts/msjhbd.ttc"),
+    # Linux (Render / Ubuntu) - Noto CJK
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+     "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
+    ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+     "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc"),
+    ("/usr/share/fonts/truetype/noto/NotoSansCJKtc-Regular.otf",
+     "/usr/share/fonts/truetype/noto/NotoSansCJKtc-Bold.otf"),
+    # Linux fallback - WQY
+    ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+     "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
+]
+
+FONT_PATH, FONT_BOLD_PATH = _FONT_CANDIDATES[0]  # 預設 Windows
 
 def register_fonts():
-    pdfmetrics.registerFont(TTFont("MSJhei",   FONT_PATH))
-    pdfmetrics.registerFont(TTFont("MSJheiBd", FONT_BOLD_PATH))
+    global FONT_PATH, FONT_BOLD_PATH
+    for regular, bold in _FONT_CANDIDATES:
+        if Path(regular).exists():
+            FONT_PATH, FONT_BOLD_PATH = regular, bold
+            bold_path = bold if Path(bold).exists() else regular
+            try:
+                pdfmetrics.registerFont(TTFont("MSJhei",   regular))
+                pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
+                return
+            except Exception:
+                continue
+    # 最終 fallback：不使用中文字型（PDF 可能顯示方塊）
+    try:
+        from reportlab.lib.fonts import addMapping
+        pdfmetrics.registerFont(TTFont("MSJhei",   _FONT_CANDIDATES[0][0]))
+    except Exception:
+        pass
 
 # ── 顏色 ──────────────────────────────────────────────────────────────────────
 NAVY   = colors.HexColor("#1B3A6B")

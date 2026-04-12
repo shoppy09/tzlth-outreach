@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: tzlth-outreach
+    env: python
+    region: singapore
+    plan: free
+    nativePackages:
+      - fonts-noto-cjk
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 1 -b 0.0.0.0:$PORT web.app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SENDER_NAME
+        value: 蒲朝棟 Tim

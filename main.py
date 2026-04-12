@@ -145,6 +145,13 @@ def _save(df_t, df_l):
     with pd.ExcelWriter(DATA_FILE, engine="openpyxl") as w:
         df_t.to_excel(w, sheet_name=TARGET_SHEET, index=False)
         df_l.to_excel(w, sheet_name=LOG_SHEET, index=False)
+    # 自動同步到 GitHub（Render 雲端持久化）
+    try:
+        from github_sync import sync_targets
+        import threading
+        threading.Thread(target=sync_targets, args=(DATA_FILE,), daemon=True).start()
+    except Exception:
+        pass
     # 自動備份：每天保留一份，以日期命名
     try:
         import shutil
