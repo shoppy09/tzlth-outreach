@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}聯絡記錄{% endblock %}
+{% block page_title %}聯絡記錄{% endblock %}
+
+{% block extra_css %}
+<style>
+.timeline-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-top:4px; }
+.timeline-line { width:2px; background:var(--border); flex:1; min-height:20px; margin:4px 4px 0; }
+.mode-badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:10px; font-weight:600; border:1px solid; }
+.mode-Email { border-color:rgba(79,142,247,.4); color:var(--accent); background:rgba(79,142,247,.1); }
+.mode-電話  { border-color:rgba(52,201,135,.4); color:var(--green); background:rgba(52,201,135,.1); }
+.mode-LINE  { border-color:rgba(42,176,197,.4); color:var(--teal); background:rgba(42,176,197,.1); }
+.mode-其他  { border-color:var(--border); color:var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 搜尋列 -->
+<div class="card mb-4">
+  <div class="card-body py-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-4">
+        <input id="searchInput" class="form-control form-control-sm" placeholder="搜尋單位名稱或內容...">
+      </div>
+      <div class="col-auto">
+        <select id="modeFilter" class="form-select form-select-sm">
+          <option value="">全部方式</option>
+          <option>Email</option><option>電話</option><option>LINE</option><option>其他</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <select id="resultFilter" class="form-select form-select-sm">
+          <option value="">全部結果</option>
+          <option>已發信</option><option>已回覆</option><option>已安排會議</option>
+          <option>合作中</option><option>未聯絡</option><option>暫不合適</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <span id="recordCount" style="font-size:12px;color:var(--muted)">共 {{ records|length }} 筆</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if records %}
+<!-- 表格視圖 -->
+<div class="table-responsive mb-4">
+  <table class="table" id="recTable">
+    <thead><tr>
+      <th>日期</th>
+      <th>單位名稱</th>
+      <th>聯絡方式</th>
+      <th>結果</th>
+      <th>內容摘要</th>
+    </tr></thead>
+    <tbody id="recBody">
+    {% for r in records %}
+    <tr class="rec-row"
+        data-name="{{ r['單位名稱'] }}"
+        data-mode="{{ r['聯絡方式'] }}"
+        data-result="{{ r['結果'] }}"
+        data-summary="{{ r['內容摘要'] or '' }}">
+      <td style="white-space:nowrap;color:var(--muted)">{{ r['日期']|string|truncate(10,true,'') }}</td>
+      <td><strong>{{ r['單位名稱'] }}</strong></td>
+      <td>
+        <span class="mode-badge mode-{{ r['聯絡方式'] }}">{{ r['聯絡方式'] }}</span>
+      </td>
+      <td>
+        <span class="badge-status s-{{ r['結果'] }}">{{ r['結果'] }}</span>
+      </td>
+      <td style="color:var(--muted);font-size:12px;max-width:300px">{{ r['內容摘要'] or '—' }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- 時間軸視圖 -->
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="fas fa-stream me-2" style="color:var(--teal)"></i>時間軸</span>
+    <span style="font-size:11px;color:var(--muted)">最近 {{ records|length }} 筆</span>
+  </div>
+  <div class="card-body">
+    {% set colors = {'已發信':'var(--amber)','已回覆':'var(--accent)','已安排會議':'var(--teal)','合作中':'var(--green)','暫不合適':'var(--red)','未聯絡':'var(--muted)'} %}
+    {% for r in records %}
+    <div class="d-flex gap-3 mb-2">
+      <div class="d-flex flex-column align-items-center">
+        <div class="timeline-dot" style="background:{{ colors.get(r['結果'], 'var(--muted)') }}"></div>
+        {% if not loop.last %}<div class="timeline-line"></div>{% endif %}
+      </div>
+      <div class="flex-fill pb-3" style="{% if loop.last %}padding-bottom:0!important{% endif %}">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <strong style="font-size:13px">{{ r['單位名稱'] }}</strong>
+            <span class="mode-badge mode-{{ r['聯絡方式'] }} ms-2">{{ r['聯絡方式'] }}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);white-space:nowrap">
+            {{ r['日期']|string|truncate(10,true,'') }}
+          </div>
+        </div>
+        {% if r['內容摘要'] %}
+        <div style="font-size:12px;color:var(--muted);margin-top:3px">{{ r['內容摘要'] }}</div>
+        {% endif %}
+        <span class="badge-status s-{{ r['結果'] }}" style="margin-top:4px;display:inline-block">{{ r['結果'] }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="card-body text-center py-5" style="color:var(--muted)">
+    <i class="fas fa-inbox fa-3x mb-3 d-block"></i>
+    尚無聯絡記錄
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterRecords() {
+  const q    = document.getElementById('searchInput').value.toLowerCase();
+  const mode = document.getElementById('modeFilter').value;
+  const res  = document.getElementById('resultFilter').value;
+  let count  = 0;
+  document.querySelectorAll('.rec-row').forEach(row => {
+    const name    = row.dataset.name.toLowerCase();
+    const summary = row.dataset.summary.toLowerCase();
+    const show    = (!q || name.includes(q) || summary.includes(q))
+                 && (!mode || row.dataset.mode === mode)
+                 && (!res  || row.dataset.result === res);
+    row.style.display = show ? '' : 'none';
+    if(show) count++;
+  });
+  document.getElementById('recordCount').textContent = `共 ${count} 筆`;
+}
+
+document.getElementById('searchInput').addEventListener('input', filterRecords);
+document.getElementById('modeFilter').addEventListener('change', filterRecords);
+document.getElementById('resultFilter').addEventListener('change', filterRecords);
+</script>
+{% endblock %}

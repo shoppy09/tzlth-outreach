@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}批次發信{% endblock %}
+{% block page_title %}批次發信{% endblock %}
+
+{% block extra_css %}
+<style>
+.target-item { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px 14px; display:flex; align-items:center; gap:12px; transition:border-color .15s; cursor:pointer; }
+.target-item:hover { border-color:var(--accent); }
+.target-item.selected { border-color:var(--accent); background:rgba(79,142,247,.07); }
+.target-item input[type=checkbox] { width:16px; height:16px; cursor:pointer; accent-color:var(--accent); }
+.result-row { padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:6px; }
+.result-sent { background:rgba(52,201,135,.1); border:1px solid rgba(52,201,135,.25); color:var(--green); }
+.result-saved { background:rgba(79,142,247,.1); border:1px solid rgba(79,142,247,.25); color:var(--accent); }
+.result-error { background:rgba(224,92,92,.1); border:1px solid rgba(224,92,92,.25); color:var(--red); }
+.step-badge { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; }
+.step-active { background:var(--accent); color:#fff; }
+.step-done { background:var(--green); color:#fff; }
+.step-idle { background:var(--border); color:var(--muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- 左欄：單位選擇 -->
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-list-check me-2" style="color:var(--accent)"></i>
+          待聯絡單位 <span id="countBadge" style="color:var(--muted);font-size:12px">（{{ targets|length }} 筆）</span>
+        </span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="selectAll()">全選</button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="selectNone()">取消</button>
+          <select id="filterType" class="form-select form-select-sm" style="width:130px" onchange="filterTargets()">
+            <option value="">全部類型</option>
+            {% for t in types %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+          </select>
+          <select id="filterPriority" class="form-select form-select-sm" style="width:80px" onchange="filterTargets()">
+            <option value="">全部優先</option>
+            {% for p in priorities %}<option value="{{ p }}">{{ p }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="card-body" style="max-height:520px;overflow-y:auto">
+        <div id="targetList" class="d-flex flex-column gap-2">
+          {% for t in targets %}
+          <div class="target-item" id="ti-{{ t['ID'] }}"
+               data-type="{{ t['單位類型'] }}" data-priority="{{ t['優先序'] }}"
+               onclick="toggleItem({{ t['ID'] }})">
+            <input type="checkbox" id="chk-{{ t['ID'] }}" onclick="event.stopPropagation();"
+                   onchange="updateCount()">
+            <div class="flex-fill">
+              <div style="font-weight:600;font-size:13px">{{ t['單位名稱'] }}</div>
+              <div style="font-size:11px;color:var(--muted)">
+                {{ t['單位類型'] }}
+                {% if t['優先序'] == '高' %}<span class="p-高 ms-1">● 高優先</span>{% endif %}
+              </div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              {% if t['Email'] %}
+              <div style="font-size:11px;color:var(--teal)"><i class="fas fa-check-circle me-1"></i>有Email</div>
+              {% else %}
+              <div style="font-size:11px;color:var(--red)"><i class="fas fa-times-circle me-1"></i>無Email</div>
+              {% endif %}
+              <div style="font-size:10px;color:var(--muted)">{{ t['輪次'] or '第一輪' }}</div>
+            </div>
+          </div>
+          {% else %}
+          <div class="text-center py-5" style="color:var(--muted)">
+            <i class="fas fa-check-circle fa-3x mb-3 d-block" style="color:var(--green)"></i>
+            所有單位都已完成聯絡！
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右欄：操作設定 + 結果 -->
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><i class="fas fa-sliders me-2" style="color:var(--amber)"></i>發送設定</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <label class="form-label mb-0">已選擇</label>
+            <span id="selectedCount" style="color:var(--accent);font-weight:700;font-size:14px">0</span>
+          </div>
+          <div class="progress" style="height:6px;background:var(--border);border-radius:3px">
+            <div id="selProgress" class="progress-bar" style="width:0%;background:var(--accent);border-radius:3px;transition:width .2s"></div>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="optPdf" checked>
+            <label class="form-check-label form-label" for="optPdf">附加 PDF 提案書</label>
+          </div>
+        </div>
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="optSend">
+            <label class="form-check-label form-label" for="optSend">
+              實際發送郵件（未勾選只存草稿）
+            </label>
+          </div>
+          <div style="font-size:11px;color:var(--red);margin-top:4px" id="sendWarning" style="display:none">
+            <i class="fas fa-exclamation-triangle me-1"></i>請確認 config.env 已設定 Gmail 密碼
+          </div>
+        </div>
+
+        <button class="btn btn-primary w-100" id="batchBtn" onclick="startBatch()">
+          <i class="fas fa-paper-plane me-2"></i>開始批次作業
+        </button>
+      </div>
+    </div>
+
+    <!-- 執行步驟 -->
+    <div class="card mb-3" id="progressCard" style="display:none">
+      <div class="card-header"><i class="fas fa-tasks me-2" style="color:var(--teal)"></i>執行進度</div>
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="step-badge step-active" id="step1">1</div>
+          <div style="font-size:12px;flex:1" id="step1txt">產生草稿中...</div>
+        </div>
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div class="step-badge step-idle" id="step2">2</div>
+          <div style="font-size:12px;flex:1;color:var(--muted)" id="step2txt">發送郵件</div>
+        </div>
+        <div class="d-flex align-items-center gap-3">
+          <div class="step-badge step-idle" id="step3">✓</div>
+          <div style="font-size:12px;flex:1;color:var(--muted)" id="step3txt">完成</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 結果 -->
+    <div class="card" id="resultsCard" style="display:none">
+      <div class="card-header"><i class="fas fa-clipboard-list me-2" style="color:var(--green)"></i>執行結果</div>
+      <div class="card-body" id="resultsBody" style="max-height:300px;overflow-y:auto">
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TOTAL = {{ targets|length }};
+let allItems = document.querySelectorAll('.target-item');
+
+document.getElementById('optSend').addEventListener('change', function(){
+  document.getElementById('sendWarning').style.display = this.checked ? '' : 'none';
+});
+
+function toggleItem(id) {
+  const chk = document.getElementById('chk-' + id);
+  const item = document.getElementById('ti-' + id);
+  chk.checked = !chk.checked;
+  item.classList.toggle('selected', chk.checked);
+  updateCount();
+}
+
+function updateCount() {
+  const checked = document.querySelectorAll('.target-item input:checked').length;
+  const visible = document.querySelectorAll('.target-item:not([style*="none"])').length;
+  document.getElementById('selectedCount').textContent = checked;
+  document.getElementById('selProgress').style.width = TOTAL > 0 ? (checked/TOTAL*100)+'%' : '0%';
+}
+
+function selectAll() {
+  document.querySelectorAll('.target-item:not([style*="none"]) input').forEach(c => {
+    c.checked = true;
+    c.closest('.target-item').classList.add('selected');
+  });
+  updateCount();
+}
+
+function selectNone() {
+  document.querySelectorAll('.target-item input').forEach(c => {
+    c.checked = false;
+    c.closest('.target-item').classList.remove('selected');
+  });
+  updateCount();
+}
+
+function filterTargets() {
+  const ft = document.getElementById('filterType').value;
+  const fp = document.getElementById('filterPriority').value;
+  document.querySelectorAll('.target-item').forEach(el => {
+    const show = (!ft || el.dataset.type === ft) && (!fp || el.dataset.priority === fp);
+    el.style.display = show ? '' : 'none';
+  });
+}
+
+function startBatch() {
+  const ids = [];
+  document.querySelectorAll('.target-item input:checked').forEach(c => {
+    ids.push(parseInt(c.id.replace('chk-','')));
+  });
+  if(ids.length === 0) { showToast('請先選擇要發信的單位', 'warning'); return; }
+
+  const genPdf = document.getElementById('optPdf').checked;
+  const doSend = document.getElementById('optSend').checked;
+
+  if(doSend && !confirm(`確定要發送 ${ids.length} 封郵件？此操作不可撤回。`)) return;
+
+  // 顯示進度
+  document.getElementById('batchBtn').disabled = true;
+  document.getElementById('progressCard').style.display = '';
+  document.getElementById('resultsCard').style.display = 'none';
+  setStep(1, 'active', '產生草稿中...');
+  setStep(2, 'idle', '發送郵件');
+  setStep(3, 'idle', '完成');
+
+  fetch('/batch/send', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ids, gen_pdf: genPdf, send: doSend})
+  }).then(r=>r.json()).then(d=>{
+    setStep(1, 'done', '草稿已產生');
+    setStep(2, doSend ? 'done' : 'idle', doSend ? '郵件已發送' : '（跳過）');
+    setStep(3, 'done', `完成！共 ${d.results.length} 筆`);
+
+    document.getElementById('batchBtn').disabled = false;
+    showResults(d.results);
+    showToast(`批次作業完成，共處理 ${d.results.length} 筆`);
+  }).catch(e=>{
+    document.getElementById('batchBtn').disabled = false;
+    showToast('發生錯誤：' + e.message, 'error');
+  });
+}
+
+function setStep(n, state, text) {
+  const badge = document.getElementById('step'+n);
+  const txt   = document.getElementById('step'+n+'txt');
+  badge.className = 'step-badge step-' + state;
+  if(n===3 && state==='done') badge.textContent = '✓';
+  txt.textContent = text;
+  txt.style.color = state==='idle' ? 'var(--muted)' : 'var(--text)';
+}
+
+function showResults(results) {
+  const card = document.getElementById('resultsCard');
+  const body = document.getElementById('resultsBody');
+  card.style.display = '';
+  body.innerHTML = results.map(r => {
+    const cls = r.status==='sent' ? 'result-sent' : r.status==='error' ? 'result-error' : 'result-saved';
+    const icon = r.status==='sent' ? 'check-circle' : r.status==='error' ? 'times-circle' : 'save';
+    return `<div class="result-row ${cls}">
+      <i class="fas fa-${icon} me-2"></i><strong>${r.name}</strong> — ${r.msg}
+    </div>`;
+  }).join('');
+}
+</script>
+{% endblock %}

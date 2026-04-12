@@ -1,0 +1,504 @@
+{% extends "base.html" %}
+{% block title %}信件範本管理{% endblock %}
+{% block page_title %}信件範本管理{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── 左欄清單 ── */
+.tmpl-sidebar {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  position: sticky;
+  top: 80px;
+  max-height: calc(100vh - 110px);
+  display: flex;
+  flex-direction: column;
+}
+.tmpl-sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  flex-shrink: 0;
+}
+.tmpl-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.tmpl-group-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 10px 14px 4px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.tmpl-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background .12s, border-color .12s;
+  gap: 8px;
+}
+.tmpl-item:hover {
+  background: rgba(255,255,255,.04);
+}
+.tmpl-item.active {
+  border-left-color: var(--accent);
+  background: rgba(79,142,247,.09);
+}
+.tmpl-item .tmpl-name {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tmpl-item .tmpl-dirty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex-shrink: 0;
+  display: none;
+}
+.tmpl-item.dirty .tmpl-dirty {
+  display: block;
+}
+.badge-round {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge-r1 {
+  background: rgba(245,166,35,.18);
+  color: var(--amber);
+}
+.badge-r2 {
+  background: rgba(79,142,247,.18);
+  color: var(--accent);
+}
+
+/* ── 右欄編輯區 ── */
+.editor-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.editor-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.editor-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.editor-meta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.editor-vars {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.editor-vars .var-label {
+  margin-right: 4px;
+}
+.editor-vars code {
+  background: rgba(79,142,247,.12);
+  color: var(--accent);
+  border: 1px solid rgba(79,142,247,.25);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: 'Consolas', 'Cascadia Code', monospace;
+}
+.editor-body {
+  padding: 16px 20px;
+  flex: 1;
+}
+#tmplTextarea {
+  font-family: 'Consolas', 'Cascadia Code', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  resize: vertical;
+  background: var(--sidebar);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 100%;
+  border-radius: 8px;
+  padding: 14px;
+  transition: border-color .15s, box-shadow .15s;
+}
+#tmplTextarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(79,142,247,.2);
+}
+.editor-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.editor-footer .btn-group-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.char-count {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 空狀態 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+.empty-state i {
+  font-size: 40px;
+  margin-bottom: 14px;
+  opacity: .35;
+}
+.empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 儲存動畫 */
+@keyframes pulse-border {
+  0%   { box-shadow: 0 0 0 0 rgba(52,201,135,.5); }
+  70%  { box-shadow: 0 0 0 6px rgba(52,201,135,0); }
+  100% { box-shadow: 0 0 0 0 rgba(52,201,135,0); }
+}
+.save-flash {
+  animation: pulse-border .6s ease;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── 將 Jinja2 資料序列化為 JS ── #}
+<script id="tmplData" type="application/json">
+{{ templates | tojson }}
+</script>
+
+<div class="row g-3">
+
+  <!-- 左欄：範本清單 -->
+  <div class="col-lg-3">
+    <div class="tmpl-sidebar">
+      <div class="tmpl-sidebar-header">
+        <i class="fas fa-file-alt me-1"></i> 範本清單
+      </div>
+      <div class="tmpl-list" id="tmplList">
+        {% set grouped = {} %}
+        {% for t in templates %}
+          {% if t.type not in grouped %}{% set _ = grouped.update({t.type: []}) %}{% endif %}
+          {% set _ = grouped[t.type].append(t) %}
+        {% endfor %}
+
+        {% for typ in types %}
+          {% set group_items = templates | selectattr('type','equalto', typ) | list %}
+          {% if group_items %}
+          <div class="tmpl-group-label">{{ typ }}</div>
+          {% for t in group_items | sort(attribute='round') %}
+          <div class="tmpl-item"
+               id="item-{{ t.key }}"
+               data-key="{{ t.key }}"
+               onclick="selectTemplate('{{ t.key }}')">
+            <span class="tmpl-name" title="{{ t.label }}">{{ t.label }}</span>
+            <span class="badge-round {% if t.round == '第一輪' %}badge-r1{% else %}badge-r2{% endif %}">
+              {{ t.round }}
+            </span>
+            <span class="tmpl-dirty" title="有未儲存的變更"></span>
+          </div>
+          {% endfor %}
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- 右欄：編輯區 -->
+  <div class="col-lg-9">
+    <div class="editor-card">
+
+      <!-- 標題列 -->
+      <div class="editor-header">
+        <div>
+          <div class="editor-title" id="editorTitle">請從左側選擇範本</div>
+          <div class="editor-meta" id="editorMeta"></div>
+        </div>
+        <div id="editorBadge"></div>
+      </div>
+
+      <!-- 可用變數提示 -->
+      <div class="editor-vars">
+        <span class="var-label">可用變數：</span>
+        <code>&#123;&#123;單位名稱&#125;&#125;</code>
+        <code>&#123;&#123;聯絡人&#125;&#125;</code>
+        <code>&#123;&#123;稱謂&#125;&#125;</code>
+        <code>&#123;&#123;地區&#125;&#125;</code>
+      </div>
+
+      <!-- 編輯器主體 -->
+      <div class="editor-body">
+        <div id="emptyState" class="empty-state">
+          <i class="fas fa-file-signature"></i>
+          <p>選擇左側範本以開始編輯</p>
+        </div>
+        <div id="editorContent" style="display:none;">
+          <textarea id="tmplTextarea" rows="20"
+                    placeholder="範本內容..."></textarea>
+        </div>
+      </div>
+
+      <!-- 底部按鈕 -->
+      <div class="editor-footer">
+        <div class="btn-group-actions" id="editorActions" style="display:none;">
+          <button class="btn btn-primary btn-sm" onclick="saveTemplate()">
+            <i class="fas fa-save me-1"></i>儲存
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="resetTemplate()">
+            <i class="fas fa-undo me-1"></i>重置為原始版本
+          </button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="copyTemplate()">
+            <i class="fas fa-copy me-1"></i>複製
+          </button>
+        </div>
+        <div class="char-count" id="charCount"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  /* ── 初始化資料 ── */
+  const rawData = JSON.parse(document.getElementById('tmplData').textContent);
+
+  // contents[key] = 目前編輯中的內容（含未儲存修改）
+  const contents = {};
+  // originals[key] = 伺服器端原始內容（用於重置判斷）
+  const originals = {};
+  // saved[key]  = 最後一次成功儲存的內容
+  const saved = {};
+
+  rawData.forEach(t => {
+    contents[t.key]  = t.content;
+    originals[t.key] = t.content;
+    saved[t.key]     = t.content;
+  });
+
+  let currentKey = null;
+
+  /* ── DOM refs ── */
+  const textarea    = document.getElementById('tmplTextarea');
+  const editorTitle = document.getElementById('editorTitle');
+  const editorMeta  = document.getElementById('editorMeta');
+  const editorBadge = document.getElementById('editorBadge');
+  const emptyState  = document.getElementById('emptyState');
+  const editorContent = document.getElementById('editorContent');
+  const editorActions = document.getElementById('editorActions');
+  const charCount   = document.getElementById('charCount');
+
+  /* ── 字數統計 ── */
+  function updateCharCount() {
+    const len = textarea.value.length;
+    charCount.textContent = `${len.toLocaleString()} 字元`;
+  }
+
+  textarea.addEventListener('input', () => {
+    if (!currentKey) return;
+    contents[currentKey] = textarea.value;
+    updateDirtyState(currentKey);
+    updateCharCount();
+  });
+
+  /* ── 未儲存標記 ── */
+  function isDirty(key) {
+    return contents[key] !== saved[key];
+  }
+
+  function updateDirtyState(key) {
+    const el = document.getElementById('item-' + key);
+    if (!el) return;
+    el.classList.toggle('dirty', isDirty(key));
+  }
+
+  /* ── 切換範本 ── */
+  window.selectTemplate = function (key) {
+    if (key === currentKey) return;
+
+    // 確認離開未儲存的修改
+    if (currentKey && isDirty(currentKey)) {
+      const ok = confirm('目前範本有未儲存的修改，確定要切換嗎？（修改將保留，可再切換回來繼續編輯）');
+      if (!ok) return;
+    }
+
+    // 移除舊的 active
+    if (currentKey) {
+      const prev = document.getElementById('item-' + currentKey);
+      if (prev) prev.classList.remove('active');
+    }
+
+    currentKey = key;
+    const tmpl = rawData.find(t => t.key === key);
+    if (!tmpl) return;
+
+    // 標記 active
+    const el = document.getElementById('item-' + key);
+    if (el) el.classList.add('active');
+
+    // 更新右欄
+    editorTitle.textContent = tmpl.label;
+    editorMeta.textContent  = `類型：${tmpl.type}　輪次：${tmpl.round}　檔名：${tmpl.key}.txt`;
+
+    const isR1 = tmpl.round === '第一輪';
+    editorBadge.innerHTML = `<span class="badge-round ${isR1 ? 'badge-r1' : 'badge-r2'}">${tmpl.round}</span>`;
+
+    emptyState.style.display    = 'none';
+    editorContent.style.display = 'block';
+    editorActions.style.display = 'flex';
+
+    textarea.value = contents[key];
+    textarea.focus();
+    updateCharCount();
+  };
+
+  /* ── 儲存 ── */
+  window.saveTemplate = async function () {
+    if (!currentKey) return;
+    const key = currentKey;
+    const body = JSON.stringify({ content: textarea.value });
+
+    try {
+      const resp = await fetch(`/api/templates/${encodeURIComponent(key)}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+      const data = await resp.json();
+      if (resp.ok && data.ok !== false) {
+        saved[key] = textarea.value;
+        contents[key] = textarea.value;
+        updateDirtyState(key);
+        textarea.classList.add('save-flash');
+        setTimeout(() => textarea.classList.remove('save-flash'), 650);
+        showToast('已儲存');
+      } else {
+        showToast(data.msg || '儲存失敗', 'error');
+      }
+    } catch (e) {
+      showToast('網路錯誤：' + e.message, 'error');
+    }
+  };
+
+  /* ── 重置 ── */
+  window.resetTemplate = async function () {
+    if (!currentKey) return;
+    const key = currentKey;
+
+    const ok = confirm('確定要重置為原始版本嗎？目前的編輯將被覆蓋。');
+    if (!ok) return;
+
+    try {
+      const resp = await fetch(`/api/templates/${encodeURIComponent(key)}/reset`);
+      const data = await resp.json();
+      if (resp.ok && data.ok !== false) {
+        const newContent = data.content ?? originals[key];
+        contents[key]  = newContent;
+        originals[key] = newContent;
+        saved[key]     = newContent;
+        textarea.value = newContent;
+        updateDirtyState(key);
+        updateCharCount();
+        showToast('已重置為原始版本');
+      } else {
+        showToast(data.msg || '重置失敗', 'error');
+      }
+    } catch (e) {
+      showToast('網路錯誤：' + e.message, 'error');
+    }
+  };
+
+  /* ── 複製 ── */
+  window.copyTemplate = async function () {
+    if (!currentKey) return;
+    try {
+      await navigator.clipboard.writeText(textarea.value);
+      showToast('已複製到剪貼簿');
+    } catch {
+      // 舊瀏覽器 fallback
+      textarea.select();
+      document.execCommand('copy');
+      showToast('已複製到剪貼簿');
+    }
+  };
+
+  /* ── 鍵盤快捷鍵：Ctrl+S / Cmd+S ── */
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      if (currentKey) {
+        e.preventDefault();
+        saveTemplate();
+      }
+    }
+  });
+
+  /* ── 離開頁面警告 ── */
+  window.addEventListener('beforeunload', e => {
+    const anyDirty = Object.keys(contents).some(k => isDirty(k));
+    if (anyDirty) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+})();
+</script>
+{% endblock %}

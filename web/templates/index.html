@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}儀表板{% endblock %}
+{% block page_title %}儀表板{% endblock %}
+
+{% block content %}
+<!-- 警示欄 -->
+{% if stats.today_list %}
+<div class="alert mb-3 d-flex align-items-center gap-3" style="border-color:rgba(42,176,197,.4);background:rgba(42,176,197,.08);color:var(--teal)">
+  <i class="fas fa-calendar-day fa-lg"></i>
+  <div>
+    <strong>今日待跟進：</strong>
+    {% for r in stats.today_list %}
+    <a href="/target/{{ r['ID'] }}" class="badge-status s-{{ r['狀態'] }} ms-1">{{ r['單位名稱'] }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% if stats.overdue > 0 %}
+<div class="alert d-flex align-items-center gap-3 mb-3" style="border-color:rgba(224,92,92,.4);background:rgba(224,92,92,.08);color:var(--red)">
+  <i class="fas fa-exclamation-triangle fa-lg"></i>
+  <div>
+    <strong>逾期提醒：</strong>有 {{ stats.overdue }} 個單位跟進日期已過期！
+    {% for r in stats.overdue_list %}
+    <a href="/target/{{ r['ID'] }}" class="badge-status s-{{ r['狀態'] }} ms-1">{{ r['單位名稱'] }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% if stats.due_soon > 0 %}
+<div class="alert d-flex align-items-center gap-3 mb-4" style="border-color:rgba(245,166,35,.4);background:rgba(245,166,35,.08);color:var(--amber)">
+  <i class="fas fa-clock fa-lg"></i>
+  <div>
+    <strong>即將到期：</strong>{{ stats.due_soon }} 個單位本週需跟進
+    {% for r in stats.due_soon_list %}
+    <a href="/target/{{ r['ID'] }}" class="badge-status s-{{ r['狀態'] }} ms-1">{{ r['單位名稱'] }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- 數字卡片 -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card accent">
+      <div class="label">目標單位</div>
+      <div class="value text-accent" style="color:var(--accent)">{{ stats.total }}</div>
+      <div class="sub">全部列表</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card">
+      <div class="label">待聯絡</div>
+      <div class="value" style="color:var(--muted)">{{ stats.unsent }}</div>
+      <div class="sub">尚未接觸</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card amber">
+      <div class="label">已發信</div>
+      <div class="value" style="color:var(--amber)">{{ stats.sent }}</div>
+      <div class="sub">等待回覆</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card accent">
+      <div class="label">已回覆</div>
+      <div class="value" style="color:var(--accent)">{{ stats.replied }}</div>
+      <div class="sub">進入第二輪</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card teal">
+      <div class="label">已安排會議</div>
+      <div class="value" style="color:var(--teal)">{{ stats.meeting }}</div>
+      <div class="sub">準備中</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="stat-card green">
+      <div class="label">合作中</div>
+      <div class="value" style="color:var(--green)">{{ stats.deal }}</div>
+      <div class="sub">已達成合作</div>
+    </div>
+  </div>
+</div>
+
+<!-- 圖表區 -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><i class="fas fa-chart-pie me-2 text-accent"></i>狀態分佈</div>
+      <div class="card-body d-flex align-items-center justify-content-center" style="min-height:220px">
+        <canvas id="statusChart" style="max-height:200px"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><i class="fas fa-chart-bar me-2 text-accent"></i>各類型進度</div>
+      <div class="card-body d-flex align-items-center" style="min-height:220px">
+        <canvas id="typeChart" style="max-height:200px;width:100%"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 最近記錄 + 快速操作 -->
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-history me-2 text-teal" style="color:var(--teal)"></i>最近聯絡記錄</span>
+        <a href="/records" class="btn btn-sm btn-outline-secondary">查看全部</a>
+      </div>
+      <div class="card-body p-0">
+        {% if stats.recent_log %}
+        <div class="table-responsive" style="border:none;border-radius:0">
+          <table class="table mb-0">
+            <thead><tr>
+              <th>日期</th><th>單位名稱</th><th>聯絡方式</th><th>結果</th><th>摘要</th>
+            </tr></thead>
+            <tbody>
+            {% for r in stats.recent_log %}
+            <tr>
+              <td style="white-space:nowrap;color:var(--muted)">{{ r['日期']|string|truncate(10, true, '') }}</td>
+              <td><strong>{{ r['單位名稱'] }}</strong></td>
+              <td><span style="color:var(--teal)">{{ r['聯絡方式'] }}</span></td>
+              <td><span class="badge-status s-{{ r['結果'] }}">{{ r['結果'] }}</span></td>
+              <td style="color:var(--muted);max-width:200px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">{{ r['內容摘要'] }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="p-4 text-center" style="color:var(--muted)">
+          <i class="fas fa-inbox fa-2x mb-2 d-block"></i>尚無聯絡記錄
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="fas fa-bolt me-2" style="color:var(--amber)"></i>快速動作</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <a href="/batch" class="btn btn-primary w-100"><i class="fas fa-paper-plane me-2"></i>批次發信</a>
+        <a href="/targets?status=未聯絡" class="btn btn-outline-secondary w-100"><i class="fas fa-users me-2"></i>查看待聯絡單位</a>
+        <a href="/targets?status=已發信" class="btn btn-outline-secondary w-100"><i class="fas fa-envelope-open me-2"></i>追蹤已發信單位</a>
+        <button onclick="checkReplies()" class="btn btn-outline-secondary w-100"><i class="fas fa-inbox me-2"></i>檢查新回信</button>
+        <a href="/report/generate" class="btn btn-outline-secondary w-100" target="_blank"><i class="fas fa-file-pdf me-2"></i>下載週報 PDF</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="fas fa-percentage me-2" style="color:var(--green)"></i>整體進度</div>
+      <div class="card-body">
+        {% set contacted = stats.sent + stats.replied + stats.meeting + stats.deal %}
+        {% set pct = ((contacted / stats.total * 100)|round|int) if stats.total > 0 else 0 %}
+        <div class="d-flex justify-content-between mb-1" style="font-size:12px">
+          <span style="color:var(--muted)">已聯絡 {{ contacted }} / {{ stats.total }}</span>
+          <span style="color:var(--green);font-weight:700">{{ pct }}%</span>
+        </div>
+        <div class="progress mb-3" style="height:8px;background:var(--border);border-radius:4px">
+          <div class="progress-bar" style="width:{{ pct }}%;background:var(--green);border-radius:4px"></div>
+        </div>
+
+        {% set reply_base = stats.replied + stats.meeting + stats.deal %}
+        {% set reply_pct = ((reply_base / contacted * 100)|round|int) if contacted > 0 else 0 %}
+        <div class="d-flex justify-content-between mb-1" style="font-size:12px">
+          <span style="color:var(--muted)">回覆率</span>
+          <span style="color:var(--accent);font-weight:700">{{ reply_pct }}%</span>
+        </div>
+        <div class="progress" style="height:8px;background:var(--border);border-radius:4px">
+          <div class="progress-bar" style="width:{{ reply_pct }}%;background:var(--accent);border-radius:4px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// 狀態圓餅圖
+const ss = {{ stats.status_stats | tojson }};
+new Chart(document.getElementById('statusChart'), {
+  type: 'doughnut',
+  data: {
+    labels: Object.keys(ss),
+    datasets: [{
+      data: Object.values(ss),
+      backgroundColor: ['#3d3f50','#f5a623','#4f8ef7','#2ab0c5','#34c987','#e05c5c'],
+      borderWidth: 0, hoverOffset: 6
+    }]
+  },
+  options: {
+    cutout: '62%',
+    plugins: {
+      legend: { position:'right', labels:{ font:{size:11}, boxWidth:12, padding:10 } }
+    }
+  }
+});
+
+// 類型長條圖
+const ts = {{ stats.type_stats | tojson }};
+const shortLabels = {
+  '退輔會/榮服處':'退輔會','政府勞動局處':'勞動局','大專院校':'大學',
+  '社區大學':'社大','企業HR':'企業HR','人資協會':'人資協會'
+};
+new Chart(document.getElementById('typeChart'), {
+  type: 'bar',
+  data: {
+    labels: Object.keys(ts).map(k => shortLabels[k]||k),
+    datasets: [{
+      label: '單位數',
+      data: Object.values(ts),
+      backgroundColor: 'rgba(79,142,247,.7)',
+      borderRadius: 5, borderWidth: 0
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: { legend:{ display:false } },
+    scales: {
+      x: { grid:{ color:'rgba(255,255,255,.04)' }, ticks:{ font:{size:11} } },
+      y: { grid:{ display:false }, ticks:{ font:{size:11} } }
+    }
+  }
+});
+</script>
+{% endblock %}

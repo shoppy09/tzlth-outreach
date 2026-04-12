@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+{% block title %}看板視圖{% endblock %}
+{% block page_title %}<i class="fas fa-columns me-2" style="color:var(--accent)"></i>看板視圖{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── 看板外層 ── */
+.kanban-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 16px;
+  /* 讓橫向捲軸不吃掉 content padding */
+  margin: -4px -24px 0;
+  padding: 4px 24px 20px;
+}
+.kanban-board {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-width: max-content;
+}
+
+/* ── 欄位 ── */
+.kanban-col {
+  width: 260px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 120px);
+}
+/* 每欄輕微底色 */
+.kanban-col[data-status="未聯絡"]   { background: rgba(139,146,169,.06); }
+.kanban-col[data-status="已發信"]   { background: rgba(245,166,35,.05); }
+.kanban-col[data-status="已回覆"]   { background: rgba(79,142,247,.06); }
+.kanban-col[data-status="已安排會議"]{ background: rgba(42,176,197,.06); }
+.kanban-col[data-status="合作中"]   { background: rgba(52,201,135,.06); }
+.kanban-col[data-status="暫不合適"] { background: rgba(224,92,92,.05); }
+
+/* ── 欄位標題 ── */
+.kanban-col-header {
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.kanban-col-title {
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-未聯絡    { background: var(--muted); }
+.dot-已發信    { background: var(--amber); }
+.dot-已回覆    { background: var(--accent); }
+.dot-已安排會議 { background: var(--teal); }
+.dot-合作中    { background: var(--green); }
+.dot-暫不合適  { background: var(--red); }
+
+.col-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  line-height: 1.4;
+}
+.badge-未聯絡    { background: rgba(139,146,169,.2); color: var(--muted); }
+.badge-已發信    { background: rgba(245,166,35,.2);  color: var(--amber); }
+.badge-已回覆    { background: rgba(79,142,247,.2);  color: var(--accent); }
+.badge-已安排會議 { background: rgba(42,176,197,.2); color: var(--teal); }
+.badge-合作中    { background: rgba(52,201,135,.2);  color: var(--green); }
+.badge-暫不合適  { background: rgba(224,92,92,.2);   color: var(--red); }
+
+/* ── 卡片列表滾動區 ── */
+.kanban-cards {
+  padding: 10px 10px 10px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 60px;
+}
+
+/* ── 單張卡片 ── */
+.kanban-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 11px 12px 9px;
+  cursor: grab;
+  text-decoration: none;
+  color: var(--text);
+  display: block;
+  transition: transform .12s, box-shadow .12s, border-color .12s;
+  position: relative;
+}
+.kanban-card:hover {
+  border-color: rgba(79,142,247,.4);
+  box-shadow: 0 4px 14px rgba(0,0,0,.35);
+  transform: translateY(-2px);
+  color: var(--text);
+  text-decoration: none;
+}
+.kanban-card.dragging {
+  opacity: .45;
+  cursor: grabbing;
+}
+.card-name {
+  font-weight: 700;
+  font-size: 13.5px;
+  line-height: 1.3;
+  margin-bottom: 3px;
+  padding-right: 22px; /* 避免被 email 圖示蓋住 */
+}
+.card-type {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 7px;
+}
+.card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.card-meta-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.card-round {
+  font-size: 10.5px;
+  color: var(--muted);
+  background: rgba(255,255,255,.06);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  line-height: 1.5;
+}
+.card-followup {
+  font-size: 10px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.card-followup.overdue { color: var(--red); }
+.card-followup.soon    { color: var(--amber); }
+
+/* email 圖示（右上角） */
+.card-email-icon {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  font-size: 11px;
+  color: var(--accent);
+  opacity: .75;
+}
+
+/* compose 按鈕 */
+.card-actions {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.kanban-card:hover .card-actions { opacity: 1; }
+.btn-compose {
+  background: rgba(79,142,247,.15);
+  border: 1px solid rgba(79,142,247,.3);
+  color: var(--accent);
+  border-radius: 5px;
+  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-compose:hover {
+  background: rgba(79,142,247,.3);
+  color: var(--accent);
+}
+
+/* ── 拖拉 drop 高亮 ── */
+.kanban-cards.drag-over {
+  background: rgba(79,142,247,.07);
+  border-radius: 8px;
+  outline: 2px dashed rgba(79,142,247,.4);
+  outline-offset: -2px;
+}
+
+/* ── 空欄提示 ── */
+.empty-hint {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 8px;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── 優先序顏色（沿用 base.html） ── */
+.priority-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+.priority-tag.p-高 { background: rgba(224,92,92,.15);  color: var(--red); }
+.priority-tag.p-中 { background: rgba(245,166,35,.15); color: var(--amber); }
+.priority-tag.p-低 { background: rgba(139,146,169,.12); color: var(--muted); }
+
+/* ── 頂部工具列 ── */
+.kanban-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.kanban-toolbar .total-badge {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: auto;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+{# 定義六個欄位順序 #}
+{% set statuses = ["未聯絡", "已發信", "已回覆", "已安排會議", "合作中", "暫不合適"] %}
+
+{# 工具列 #}
+<div class="kanban-toolbar">
+  <a href="/targets" class="btn btn-sm btn-outline-secondary">
+    <i class="fas fa-list me-1"></i>列表視圖
+  </a>
+  <a href="/targets/new" class="btn btn-sm btn-primary">
+    <i class="fas fa-plus me-1"></i>新增單位
+  </a>
+  <span class="total-badge">
+    <i class="fas fa-building me-1"></i>共 {{ targets|length }} 個單位
+  </span>
+</div>
+
+{# 看板主體 #}
+<div class="kanban-wrapper">
+  <div class="kanban-board">
+
+    {% for status in statuses %}
+    {% set col_targets = targets | selectattr("狀態", "equalto", status) | list %}
+    <div class="kanban-col" data-status="{{ status }}">
+
+      {# 欄位標題 #}
+      <div class="kanban-col-header">
+        <div class="kanban-col-title">
+          <span class="col-dot dot-{{ status }}"></span>
+          {{ status }}
+        </div>
+        <span class="col-count-badge badge-{{ status }}" id="badge-{{ status }}">
+          {{ col_targets|length }}
+        </span>
+      </div>
+
+      {# 卡片列表（drop zone） #}
+      <div class="kanban-cards" id="col-{{ status }}"
+           data-status="{{ status }}"
+           ondragover="onDragOver(event)"
+           ondragleave="onDragLeave(event)"
+           ondrop="onDrop(event)">
+
+        {% if col_targets %}
+          {% for t in col_targets %}
+          {# 判斷下次跟進日期 #}
+          {% set followup_class = "" %}
+          {% if t.下次跟進日期 %}
+            {# 用 JS 在客戶端計算顏色，這裡只傳資料 #}
+          {% endif %}
+
+          <div class="kanban-card"
+               id="card-{{ t.ID }}"
+               draggable="true"
+               data-id="{{ t.ID }}"
+               data-status="{{ t.狀態 }}"
+               data-followup="{{ t.下次跟進日期 or '' }}"
+               onclick="goToTarget(event, {{ t.ID }})"
+               ondragstart="onDragStart(event)"
+               ondragend="onDragEnd(event)">
+
+            {# Email 圖示（右上角） #}
+            {% if t.Email %}
+            <span class="card-email-icon" title="{{ t.Email }}">
+              <i class="fas fa-envelope"></i>
+            </span>
+            {% endif %}
+
+            {# 單位名稱 #}
+            <div class="card-name">{{ t.單位名稱 }}</div>
+
+            {# 類型 #}
+            <div class="card-type">{{ t.單位類型 or "—" }}</div>
+
+            {# Meta 列 #}
+            <div class="card-meta">
+              <div class="card-meta-left">
+                {# 優先序 #}
+                {% if t.優先序 %}
+                <span class="priority-tag p-{{ t.優先序 }}">{{ t.優先序 }}</span>
+                {% endif %}
+
+                {# 輪次 #}
+                {% if t.輪次 %}
+                <span class="card-round">{{ t.輪次 }}</span>
+                {% endif %}
+
+                {# 下次跟進日期（顏色由 JS 渲染） #}
+                {% if t.下次跟進日期 %}
+                <span class="card-followup" data-date="{{ t.下次跟進日期 }}">
+                  <i class="fas fa-calendar-alt"></i>
+                  {{ t.下次跟進日期 }}
+                </span>
+                {% endif %}
+              </div>
+            </div>
+
+            {# Compose 按鈕 #}
+            {% if t.Email %}
+            <div class="card-actions">
+              <a href="/compose/{{ t.ID }}"
+                 class="btn-compose"
+                 onclick="event.stopPropagation()"
+                 title="寫信給 {{ t.單位名稱 }}">
+                <i class="fas fa-paper-plane me-1"></i>寫信
+              </a>
+            </div>
+            {% endif %}
+          </div>
+          {% endfor %}
+
+        {% else %}
+          <div class="empty-hint">
+            <i class="fas fa-inbox-in" style="font-size:18px;opacity:.3;display:block;margin-bottom:6px"></i>
+            尚無單位
+          </div>
+        {% endif %}
+
+      </div>{# end .kanban-cards #}
+    </div>{# end .kanban-col #}
+    {% endfor %}
+
+  </div>{# end .kanban-board #}
+</div>{# end .kanban-wrapper #}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ────────────────────────────────────────────────
+   下次跟進日期顏色（overdue / soon / 一般）
+──────────────────────────────────────────────── */
+(function colorFollowupDates() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  document.querySelectorAll('.card-followup[data-date]').forEach(el => {
+    const raw = el.dataset.date;
+    if (!raw) return;
+    const d = new Date(raw);
+    if (isNaN(d)) return;
+    d.setHours(0, 0, 0, 0);
+    const diff = Math.round((d - today) / 86400000); // 天數差
+    if (diff < 0) {
+      el.classList.add('overdue');
+      el.title = `已過期 ${Math.abs(diff)} 天`;
+    } else if (diff <= 3) {
+      el.classList.add('soon');
+      el.title = diff === 0 ? '今天跟進' : `${diff} 天後跟進`;
+    }
+  });
+})();
+
+/* ────────────────────────────────────────────────
+   點擊卡片導向詳情頁（排除子元素點擊）
+──────────────────────────────────────────────── */
+function goToTarget(event, id) {
+  // 若點到 compose 按鈕則不跳轉（已有 onclick.stopPropagation）
+  if (event.target.closest('.card-actions')) return;
+  window.location.href = `/target/${id}`;
+}
+
+/* ────────────────────────────────────────────────
+   HTML5 Drag & Drop
+──────────────────────────────────────────────── */
+let draggedCard = null;
+let originColId = null;
+
+function onDragStart(event) {
+  draggedCard = event.currentTarget;
+  originColId = draggedCard.closest('.kanban-cards').id;
+  draggedCard.classList.add('dragging');
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', draggedCard.dataset.id);
+}
+
+function onDragEnd(event) {
+  if (draggedCard) draggedCard.classList.remove('dragging');
+  // 清除所有欄位高亮
+  document.querySelectorAll('.kanban-cards').forEach(c => c.classList.remove('drag-over'));
+  draggedCard = null;
+  originColId = null;
+}
+
+function onDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  const col = event.currentTarget;
+  col.classList.add('drag-over');
+}
+
+function onDragLeave(event) {
+  // 只在真正離開 drop zone 時移除（避免子元素觸發）
+  const col = event.currentTarget;
+  if (!col.contains(event.relatedTarget)) {
+    col.classList.remove('drag-over');
+  }
+}
+
+function onDrop(event) {
+  event.preventDefault();
+  const targetCol = event.currentTarget;
+  targetCol.classList.remove('drag-over');
+
+  if (!draggedCard) return;
+
+  const newStatus  = targetCol.dataset.status;
+  const cardId     = draggedCard.dataset.id;
+  const oldStatus  = draggedCard.dataset.status;
+
+  // 同欄不處理
+  if (targetCol.id === originColId) return;
+
+  // 樂觀 UI：先移動 DOM
+  // 移除空欄提示（如果存在）
+  const emptyHint = targetCol.querySelector('.empty-hint');
+  if (emptyHint) emptyHint.remove();
+
+  // 把卡片插到目標欄
+  targetCol.appendChild(draggedCard);
+  draggedCard.dataset.status = newStatus;
+
+  // 更新原欄：若空了補上提示
+  const originCol = document.getElementById(originColId);
+  if (originCol && originCol.querySelectorAll('.kanban-card').length === 0) {
+    originCol.innerHTML = `
+      <div class="empty-hint">
+        <i class="fas fa-inbox-in" style="font-size:18px;opacity:.3;display:block;margin-bottom:6px"></i>
+        尚無單位
+      </div>`;
+  }
+
+  // 更新 badge 計數
+  updateBadge(oldStatus);
+  updateBadge(newStatus);
+
+  // 發送 POST 到後端
+  const formData = new URLSearchParams();
+  formData.append('status', newStatus);
+
+  fetch(`/targets/${cardId}/update-status`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData.toString()
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      showToast(`「${draggedCard.querySelector('.card-name').textContent.trim()}」已移至【${newStatus}】`);
+    } else {
+      // 回滾：移回原欄
+      rollback(cardId, oldStatus, newStatus);
+      showToast('狀態更新失敗：' + (data.msg || '未知錯誤'), 'error');
+    }
+  })
+  .catch(err => {
+    rollback(cardId, oldStatus, newStatus);
+    showToast('網路錯誤，已還原', 'error');
+    console.error(err);
+  });
+}
+
+/* 計算並更新欄位 badge 數量 */
+function updateBadge(status) {
+  const col   = document.getElementById(`col-${status}`);
+  const badge = document.getElementById(`badge-${status}`);
+  if (!col || !badge) return;
+  const count = col.querySelectorAll('.kanban-card').length;
+  badge.textContent = count;
+}
+
+/* 回滾：把卡片移回原欄 */
+function rollback(cardId, oldStatus, newStatus) {
+  const card    = document.getElementById(`card-${cardId}`);
+  const origCol = document.getElementById(`col-${oldStatus}`);
+  const newCol  = document.getElementById(`col-${newStatus}`);
+  if (!card || !origCol) return;
+
+  // 移回原欄
+  const origEmpty = origCol.querySelector('.empty-hint');
+  if (origEmpty) origEmpty.remove();
+  origCol.appendChild(card);
+  card.dataset.status = oldStatus;
+
+  // 新欄若空了補提示
+  if (newCol && newCol.querySelectorAll('.kanban-card').length === 0) {
+    newCol.innerHTML = `
+      <div class="empty-hint">
+        <i class="fas fa-inbox-in" style="font-size:18px;opacity:.3;display:block;margin-bottom:6px"></i>
+        尚無單位
+      </div>`;
+  }
+
+  updateBadge(oldStatus);
+  updateBadge(newStatus);
+}
+</script>
+{% endblock %}

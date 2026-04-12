@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+{% block title %}撰寫信件 — {{ target['單位名稱'] }}{% endblock %}
+{% block page_title %}撰寫信件{% endblock %}
+
+{% block extra_css %}
+<style>
+.info-chip { display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; background:rgba(79,142,247,.1); border:1px solid rgba(79,142,247,.25); color:var(--accent); margin-right:6px; }
+.tab-btn { padding:6px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--muted); font-size:12px; cursor:pointer; transition:all .15s; }
+.tab-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* 步驟指示器 */
+.step-indicator { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.step-circle { width:28px; height:28px; border-radius:50%; border:2px solid var(--border); background:var(--sidebar); color:var(--muted); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; transition:all .2s; }
+.step-circle.active { border-color:var(--accent); background:var(--accent); color:#fff; }
+.step-circle.done { border-color:var(--green); background:var(--green); color:#fff; }
+.step-label { font-size:10px; color:var(--muted); white-space:nowrap; }
+.step-line { flex:1; height:2px; background:var(--border); margin:0 6px; margin-bottom:14px; transition:background .2s; }
+.step-line.done { background:var(--green); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <!-- 左欄：單位資訊 + 設定 -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header"><i class="fas fa-building me-2" style="color:var(--teal)"></i>單位資訊</div>
+      <div class="card-body">
+        <div style="font-size:16px;font-weight:700;margin-bottom:8px">{{ target['單位名稱'] }}</div>
+        <div class="mb-2">
+          <span class="info-chip">{{ target['單位類型'] }}</span>
+          <span class="badge-status s-{{ target['狀態'] }}">{{ target['狀態'] }}</span>
+        </div>
+        {% if target['聯絡人'] %}
+        <div style="font-size:12px;color:var(--muted)" class="mt-2">
+          <i class="fas fa-user me-1"></i>{{ target['聯絡人'] }}
+          {% if target['職稱'] %} · {{ target['職稱'] }}{% endif %}
+        </div>
+        {% endif %}
+        {% if target['Email'] %}
+        <div style="font-size:12px;color:var(--teal)" class="mt-1">
+          <i class="fas fa-envelope me-1"></i>{{ target['Email'] }}
+        </div>
+        {% else %}
+        <div style="font-size:12px;color:var(--red)" class="mt-1">
+          <i class="fas fa-exclamation-circle me-1"></i>尚無 Email — 請先設定
+        </div>
+        {% endif %}
+        {% if target['地區'] %}
+        <div style="font-size:12px;color:var(--muted)" class="mt-1">
+          <i class="fas fa-map-marker-alt me-1"></i>{{ target['地區'] }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-header"><i class="fas fa-cog me-2" style="color:var(--amber)"></i>發信設定</div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">信件輪次</label>
+          <select id="roundSelect" class="form-select" onchange="loadPreview()">
+            {% for r in rounds %}
+            <option value="{{ r }}" {{ 'selected' if target.get('輪次','第一輪')==r }}>{{ r }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">附加 PDF 提案書</label>
+          <div class="form-check form-switch mt-1">
+            <input class="form-check-input" type="checkbox" id="genPdf" checked>
+            <label class="form-check-label" for="genPdf" style="font-size:12px;color:var(--muted)">自動產生並附上</label>
+          </div>
+        </div>
+        <div>
+          <label class="form-label">收件人 Email</label>
+          <input id="toEmail" class="form-control" type="email" value="{{ target['Email'] or '' }}" placeholder="尚未設定">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="fas fa-tools me-2" style="color:var(--muted)"></i>輔助工具</div>
+      <div class="card-body d-flex flex-column gap-2">
+        <button class="btn btn-sm btn-outline-secondary" onclick="viewScript('line')">
+          <i class="fas fa-comment-dots me-1"></i>查看 LINE 話術
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="viewScript('phone')">
+          <i class="fas fa-phone me-1"></i>查看電話話術
+        </button>
+        <a href="/pdf/{{ target['ID'] }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-file-pdf me-1"></i>預覽提案書 PDF
+        </a>
+        <a href="/targets" class="btn btn-sm btn-outline-secondary">
+          <i class="fas fa-arrow-left me-1"></i>返回單位列表
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右欄：郵件編輯區 -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-envelope me-2" style="color:var(--accent)"></i>郵件內容</span>
+        <div class="d-flex gap-2">
+          <button class="tab-btn active" id="tab-edit" onclick="switchTab('edit')">編輯</button>
+          <button class="tab-btn" id="tab-preview" onclick="switchTab('preview')">預覽</button>
+        </div>
+      </div>
+      <!-- 步驟指示器 -->
+      <div class="card-body" style="border-bottom:1px solid var(--border);padding:12px 18px">
+        <div class="d-flex align-items-center gap-0">
+          <div class="step-indicator" id="step-ind-1">
+            <div class="step-circle active" id="sc1">1</div>
+            <div class="step-label">選擇範本</div>
+          </div>
+          <div class="step-line" id="sl1"></div>
+          <div class="step-indicator" id="step-ind-2">
+            <div class="step-circle" id="sc2">2</div>
+            <div class="step-label">編輯內容</div>
+          </div>
+          <div class="step-line" id="sl2"></div>
+          <div class="step-indicator" id="step-ind-3">
+            <div class="step-circle" id="sc3">3</div>
+            <div class="step-label">確認發送</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1：選擇範本 -->
+      <div id="pane-step1" class="card-body">
+        <div class="mb-3">
+          <label class="form-label">郵件主旨</label>
+          <input id="subjectInput" class="form-control" value="" placeholder="自動產生...">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">郵件內文</label>
+          <textarea id="bodyInput" class="form-control" rows="16" style="font-size:13px;line-height:1.7;font-family:monospace">{{ body }}</textarea>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-primary" onclick="goStep(2)">
+            <i class="fas fa-eye me-1"></i>預覽確認 →
+          </button>
+          <button class="btn btn-outline-secondary" onclick="doSaveDraft()">
+            <i class="fas fa-save me-1"></i>存本機草稿
+          </button>
+          <button class="btn btn-outline-secondary" onclick="saveGmailDraft()" title="存入 Gmail 草稿匣，之後在 Gmail 確認後手動發送">
+            <i class="fab fa-google me-1"></i>存入 Gmail 草稿
+          </button>
+          <button class="btn btn-outline-secondary ms-auto" onclick="copyBody()">
+            <i class="fas fa-copy me-1"></i>複製
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2：預覽確認 -->
+      <div id="pane-step2" class="card-body" style="display:none">
+        <div class="mb-3 p-3" style="background:var(--sidebar);border-radius:8px;border:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:4px">收件人</div>
+          <div id="preview-to" style="font-size:14px;color:var(--teal)"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:4px">主旨</div>
+          <div id="preview-subject" style="font-size:14px;font-weight:600"></div>
+        </div>
+        <div class="mb-3">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">信件內容預覽</div>
+          <div id="bodyPreview" class="email-preview" style="min-height:260px;max-height:380px;overflow-y:auto"></div>
+        </div>
+        <div class="mb-3">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="genPdf" checked>
+            <label class="form-check-label" for="genPdf" style="font-size:13px">
+              <i class="fas fa-file-pdf me-1" style="color:var(--red)"></i>附加 PDF 提案書
+            </label>
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" onclick="goStep(1)">
+            <i class="fas fa-arrow-left me-1"></i>返回修改
+          </button>
+          <button class="btn btn-primary ms-auto" onclick="goStep(3)">
+            <i class="fas fa-paper-plane me-1"></i>確認發送 →
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3：發送結果 -->
+      <div id="pane-step3" class="card-body" style="display:none">
+        <div id="sendingSpinner" class="text-center py-4">
+          <i class="fas fa-spinner fa-spin fa-2x mb-3 d-block" style="color:var(--accent)"></i>
+          <div style="color:var(--muted)">發送中，請稍候...</div>
+        </div>
+        <div id="sendResult" style="display:none"></div>
+        <div id="afterSendBtns" class="d-flex gap-2 mt-3" style="display:none!important">
+          <a href="/targets" class="btn btn-outline-secondary">返回單位列表</a>
+          <button class="btn btn-outline-secondary" onclick="goStep(1)">重新編輯</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 腳本 Modal -->
+<div id="scriptModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:1000;align-items:center;justify-content:center">
+  <div class="card" style="width:560px;max-height:78vh;display:flex;flex-direction:column">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+      <span id="scriptTitle" style="font-weight:700;font-size:14px"></span>
+      <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('scriptModal').style.display='none'">關閉</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:16px">
+      <div id="scriptContent" class="script-box"></div>
+    </div>
+    <div style="padding:10px 16px;border-top:1px solid var(--border)">
+      <button class="btn btn-sm btn-outline-secondary" onclick="copyScript()"><i class="fas fa-copy me-1"></i>複製</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TID = {{ target['ID'] }};
+let currentStep = 1;
+
+// 頁面載入時取得主旨
+window.addEventListener('load', () => {
+  fetch(`/compose/${TID}/preview`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:`round=${encodeURIComponent(document.getElementById('roundSelect').value)}`
+  }).then(r=>r.json()).then(d=>{
+    if(d.subject) document.getElementById('subjectInput').value = d.subject;
+  });
+});
+
+// 切換輪次時重新載入模板
+function loadPreview() {
+  const round = document.getElementById('roundSelect').value;
+  fetch(`/compose/${TID}/preview`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:`round=${encodeURIComponent(round)}`
+  }).then(r=>r.json()).then(d=>{
+    if(d.body) document.getElementById('bodyInput').value = d.body;
+    if(d.subject) document.getElementById('subjectInput').value = d.subject;
+    showToast('已載入 ' + round + ' 範本');
+  });
+}
+
+// 步驟切換
+function goStep(step) {
+  if(step === 2) {
+    // 進入預覽：填入收件人、主旨、內容
+    const to = document.getElementById('toEmail').value.trim();
+    document.getElementById('preview-to').textContent = to || '（尚未設定 Email）';
+    document.getElementById('preview-subject').textContent = document.getElementById('subjectInput').value;
+    document.getElementById('bodyPreview').textContent = document.getElementById('bodyInput').value;
+  }
+  if(step === 3) {
+    // 進入發送
+    const to = document.getElementById('toEmail').value.trim();
+    if(!to) { showToast('此單位尚無 Email，無法發送', 'error'); return; }
+    doSend();
+  }
+  currentStep = step;
+  // 更新 pane 顯示
+  [1,2,3].forEach(s => {
+    document.getElementById('pane-step'+s).style.display = s===step ? '' : 'none';
+  });
+  // 更新步驟指示器
+  updateStepIndicator(step);
+}
+
+function updateStepIndicator(step) {
+  [1,2,3].forEach(s => {
+    const circle = document.getElementById('sc'+s);
+    circle.className = 'step-circle' + (s < step ? ' done' : s===step ? ' active' : '');
+    if(s < step) circle.innerHTML = '<i class="fas fa-check" style="font-size:10px"></i>';
+    else circle.textContent = s;
+  });
+  [1,2].forEach(s => {
+    const line = document.getElementById('sl'+s);
+    if(line) line.className = 'step-line' + (s < step ? ' done' : '');
+  });
+}
+
+function doSend() {
+  document.getElementById('sendingSpinner').style.display = '';
+  document.getElementById('sendResult').style.display = 'none';
+  document.getElementById('afterSendBtns').style.display = 'none';
+
+  fetch(`/compose/${TID}/send`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: `body=${encodeURIComponent(document.getElementById('bodyInput').value)}`
+         +`&subject=${encodeURIComponent(document.getElementById('subjectInput').value)}`
+         +`&gen_pdf=${document.getElementById('genPdf').checked?'1':'0'}`
+  }).then(r=>r.json()).then(d=>{
+    document.getElementById('sendingSpinner').style.display = 'none';
+    const res = document.getElementById('sendResult');
+    res.style.display = '';
+    res.innerHTML = `
+      <div class="text-center py-3">
+        <i class="fas fa-${d.ok?'check-circle':'times-circle'} fa-3x mb-3 d-block" style="color:var(--${d.ok?'green':'red'})"></i>
+        <div style="font-size:16px;font-weight:600;margin-bottom:8px">${d.ok?'發送成功！':'發送失敗'}</div>
+        <div style="font-size:13px;color:var(--muted)">${d.msg}</div>
+      </div>`;
+    document.getElementById('afterSendBtns').style.removeProperty('display');
+    showToast(d.msg, d.ok?'success':'error');
+  });
+}
+
+function doSaveDraft() {
+  fetch(`/compose/${TID}/save`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body:`body=${encodeURIComponent(document.getElementById('bodyInput').value)}`
+  }).then(r=>r.json()).then(d=>{
+    showToast(d.ok ? d.msg : '儲存失敗', d.ok?'success':'error');
+  });
+}
+
+function copyBody() {
+  navigator.clipboard.writeText(document.getElementById('bodyInput').value)
+    .then(()=>showToast('已複製到剪貼簿'));
+}
+
+function saveGmailDraft() {
+  fetch(`/compose/${TID}/save-draft-gmail`, {
+    method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
+    body: `subject=${encodeURIComponent(document.getElementById('subjectInput').value)}`
+         +`&body=${encodeURIComponent(document.getElementById('bodyInput').value)}`
+  }).then(r=>r.json()).then(d=>{
+    showToast(d.msg, d.ok?'success':'error');
+  });
+}
+
+function viewScript(stype) {
+  fetch(`/script/${stype}/${TID}`).then(r=>r.json()).then(d=>{
+    document.getElementById('scriptTitle').textContent =
+      (stype==='line'?'LINE 話術 — ':'電話話術 — ') + (d.name||'');
+    document.getElementById('scriptContent').textContent = d.text || '找不到腳本';
+    document.getElementById('scriptModal').style.display = 'flex';
+  });
+}
+
+function copyScript() {
+  navigator.clipboard.writeText(document.getElementById('scriptContent').textContent)
+    .then(()=>showToast('已複製'));
+}
+
+document.getElementById('scriptModal').addEventListener('click', function(e){
+  if(e.target===this) this.style.display='none';
+});
+</script>
+{% endblock %}
