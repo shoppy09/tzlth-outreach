@@ -41,12 +41,11 @@ BASE_DIR = Path(__file__).parent.parent
 # ── 輔助函數 ──────────────────────────────────────────────────────────────────
 def df_to_records(df):
     df = df.copy()
-    # 字串欄位：NaN → '' （避免 Jinja2 顯示 "nan"）
-    obj_cols = df.select_dtypes(include='object').columns
-    df[obj_cols] = df[obj_cols].fillna('')
-    # 數值欄位：NaN → None
-    for col in df.select_dtypes(exclude='object').columns:
-        df[col] = df[col].where(df[col].notna(), other=None)
+    # 所有欄位 NaN → ''（避免 Jinja2 顯示 "nan"）
+    # 注意：全空的文字欄位 pandas 可能推斷為 float64，用 select_dtypes 會漏掉
+    # 因此對所有欄位統一 fillna('')，ID 等整數欄位本就不含 NaN 故不影響
+    for col in df.columns:
+        df[col] = df[col].where(df[col].notna(), other='')
     return df.to_dict(orient="records")
 
 def get_stats():
