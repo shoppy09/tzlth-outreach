@@ -10,3 +10,5 @@
 請問是否方便進一步說明合作方式？
 
 個人網站：https://tzlth-website.vercel.app/
+
+> 最後審查：2026-04-16，已對照 service-catalogue.md A 類

@@ -24,12 +24,32 @@
 6. 多元社群（自媒體相關）
 
 ## 目前狀態
-Web 介面運作中（http://localhost:5000）。看板視圖已修復並確認正常。
+已部署至 Render（Singapore）：https://tzlth-outreach.onrender.com ✅ live
+本地備份仍可用（web/app.py，需設定環境變數）。
+
+### 雲端架構
+- **平台**：Render Free tier（Singapore）
+- **Service ID**：srv-d7dnqinlk1mc73esjag0
+- **Python 版本**：3.11.9（PYTHON_VERSION env var）
+- **系統字體**：fonts-noto-cjk（render.yaml nativePackages）
+- **資料持久化**：每次 _save() 觸發背景執行緒 commit targets.xlsx 至 GitHub
+- **環境變數**：SENDER_NAME ✅ / GITHUB_TOKEN ✅ / GITHUB_REPO ✅ / SENDER_EMAIL ❌ / SENDER_PASSWORD ❌（Tim 待設定）
+
+## 收尾四件事（每次對話結束前必做）
+1. **更新本文件「最近修改記錄」**（見下表）
+2. **更新總部任務清單**：`C:\Users\USER\Desktop\tzlth-hq\dev\tasks.md`
+3. **更新每日日誌**：`C:\Users\USER\Desktop\tzlth-hq\reports\daily-log.md`
+4. **寫入反思日誌**：`C:\Users\USER\Desktop\tzlth-hq\reports\reflection-log.md`（有實質改善價值才寫）
+
+> 未完成收尾四件事 = 任務未完成。
 
 ## 最近修改記錄（跨視窗同步用）
 
 | 日期 | 修改內容 | 在哪個視窗執行 | 狀態 |
 |------|---------|--------------|------|
+| 2026-04-12 | PDF 字體跨平台支援（_FONT_CANDIDATES fallback list + render.yaml nativePackages: fonts-noto-cjk）| 總部視窗 | ✅ live |
+| 2026-04-12 | GitHub 資料持久化（github_sync.py + main.py _save() 背景執行緒）| 總部視窗 | ✅ live |
+| 2026-04-12 | 部署至 Render（commit 08803bd，解決 Python 版本 + numpy/pandas 相容性）| 總部視窗 | ✅ live |
 | 2026-04-12 | 修復看板視圖 404 問題（雙 Flask 進程衝突，kill 舊進程後重啟） | 總部視窗 | ✅ 已確認 |
 | 2026-04-12 | base.html 已有「範本管理」導覽連結（/templates），路由 app.py:425 已存在 | 總部視窗 | ✅ 確認可用 |
 
