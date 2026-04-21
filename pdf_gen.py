@@ -37,23 +37,40 @@ _FONT_CANDIDATES = [
 FONT_PATH, FONT_BOLD_PATH = _FONT_CANDIDATES[0]  # 預設 Windows
 
 def register_fonts():
+    import glob
     global FONT_PATH, FONT_BOLD_PATH
-    for regular, bold in _FONT_CANDIDATES:
+    all_candidates = list(_FONT_CANDIDATES)
+    for regular, bold in all_candidates:
         if Path(regular).exists():
             FONT_PATH, FONT_BOLD_PATH = regular, bold
             bold_path = bold if Path(bold).exists() else regular
             try:
                 pdfmetrics.registerFont(TTFont("MSJhei",   regular))
                 pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
+                pdfmetrics.registerFontFamily(
+                    "MSJhei", normal="MSJhei", bold="MSJheiBd",
+                    italic="MSJhei", boldItalic="MSJheiBd"
+                )
                 return
             except Exception:
                 continue
-    # 最終 fallback：不使用中文字型（PDF 可能顯示方塊）
-    try:
-        from reportlab.lib.fonts import addMapping
-        pdfmetrics.registerFont(TTFont("MSJhei",   _FONT_CANDIDATES[0][0]))
-    except Exception:
-        pass
+    # glob fallback: search entire /usr/share/fonts for any CJK font
+    for pattern in ["/usr/share/fonts/**/*CJK*Regular*.ttc",
+                    "/usr/share/fonts/**/*CJK*Regular*.otf",
+                    "/usr/share/fonts/**/*[Nn]oto*[Cc][Jj][Kk]*.ttc"]:
+        matches = glob.glob(pattern, recursive=True)
+        if matches:
+            try:
+                FONT_PATH = FONT_BOLD_PATH = matches[0]
+                pdfmetrics.registerFont(TTFont("MSJhei",   matches[0]))
+                pdfmetrics.registerFont(TTFont("MSJheiBd", matches[0]))
+                pdfmetrics.registerFontFamily(
+                    "MSJhei", normal="MSJhei", bold="MSJheiBd",
+                    italic="MSJhei", boldItalic="MSJheiBd"
+                )
+                return
+            except Exception:
+                continue
 
 # ── 顏色 ──────────────────────────────────────────────────────────────────────
 NAVY   = colors.HexColor("#1B3A6B")

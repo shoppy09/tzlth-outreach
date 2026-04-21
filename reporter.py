@@ -35,6 +35,16 @@ LIGHT = colors.HexColor("#F0F5FA")
 GREY  = colors.HexColor("#555555")
 WHITE = colors.white
 
+def _register_pair(regular_path, bold_path):
+    """Register MSJhei/MSJheiBd font pair and declare family mapping."""
+    from reportlab.lib.fonts import addMapping
+    pdfmetrics.registerFont(TTFont("MSJhei",   regular_path))
+    pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
+    pdfmetrics.registerFontFamily(
+        "MSJhei", normal="MSJhei", bold="MSJheiBd",
+        italic="MSJhei", boldItalic="MSJheiBd"
+    )
+
 def register_fonts():
     import glob
     candidates = [
@@ -52,8 +62,7 @@ def register_fonts():
         if Path(regular).exists():
             bold_path = bold if Path(bold).exists() else regular
             try:
-                pdfmetrics.registerFont(TTFont("MSJhei",   regular))
-                pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
+                _register_pair(regular, bold_path)
                 return
             except Exception:
                 continue
@@ -63,8 +72,7 @@ def register_fonts():
         matches = glob.glob(pattern, recursive=True)
         if matches:
             try:
-                pdfmetrics.registerFont(TTFont("MSJhei",   matches[0]))
-                pdfmetrics.registerFont(TTFont("MSJheiBd", matches[0]))
+                _register_pair(matches[0], matches[0])
                 return
             except Exception:
                 continue
