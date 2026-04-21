@@ -64,6 +64,8 @@ def register_fonts():
 
     # OTF/TTF single-font candidates (no subfontIndex needed)
     # Debian python:3.11-slim + fonts-noto-cjk → /usr/share/fonts/opentype/noto/
+    # NOTE: fonts-noto-cjk TTC files use CFF outlines (not supported by ReportLab)
+    #       fonts-wqy-microhei TTC uses TrueType outlines → works with ReportLab
     otf_candidates = [
         ("C:/Windows/Fonts/msjh.ttc",    "C:/Windows/Fonts/msjhbd.ttc"),
         ("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
@@ -76,8 +78,6 @@ def register_fonts():
          "/usr/share/fonts/truetype/noto/NotoSansCJKsc-Bold.otf"),
         ("/usr/share/fonts/truetype/noto/NotoSansCJKtc-Regular.otf",
          "/usr/share/fonts/truetype/noto/NotoSansCJKtc-Bold.otf"),
-        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
-         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
     ]
     for regular, bold in otf_candidates:
         if Path(regular).exists():
@@ -90,7 +90,13 @@ def register_fonts():
                 print(f"[fonts] FAIL {regular}: {exc}", file=sys.stderr)
 
     # TTC collection candidates — require subfontIndex=0
+    # WQY Microhei: TrueType outlines → ReportLab compatible ✓
+    # Noto CJK:     CFF/PostScript outlines → ReportLab incompatible ✗
     ttc_candidates = [
+        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
+        ("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"),
         ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
          "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
         ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",

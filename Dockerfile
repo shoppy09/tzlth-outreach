@@ -1,7 +1,10 @@
 FROM python:3.11-slim
 
 # 安裝中文字體（ReportLab PDF 中文支援）
+# fonts-wqy-microhei 使用 TrueType outlines（ReportLab 相容）
+# fonts-noto-cjk 使用 CFF/PostScript outlines（ReportLab 不支援，僅備用）
 RUN apt-get update && apt-get install -y \
+    fonts-wqy-microhei \
     fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
