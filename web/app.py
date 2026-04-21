@@ -522,7 +522,7 @@ def export_logs():
 
 @app.route("/export/backup/<filename>")
 def export_backup(filename):
-    backup_dir = BASE_DIR / "data" / "backup"
+    backup_dir = DATA_FILE.parent / "backup"
     path = backup_dir / filename
     if not path.exists():
         return "找不到備份檔", 404
@@ -534,8 +534,8 @@ def export_backup(filename):
 def backup_now():
     try:
         import shutil
-        backup_dir = BASE_DIR / "data" / "backup"
-        backup_dir.mkdir(exist_ok=True)
+        backup_dir = DATA_FILE.parent / "backup"
+        backup_dir.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         out   = backup_dir / f"targets_{stamp}.xlsx"
         shutil.copy2(DATA_FILE, out)
@@ -662,7 +662,7 @@ def api_targets():
 # ── 路由：備份管理 ────────────────────────────────────────────────────────────
 @app.route("/api/backups")
 def api_backups():
-    backup_dir = BASE_DIR / "data" / "backup"
+    backup_dir = DATA_FILE.parent / "backup"
     if not backup_dir.exists():
         return jsonify([])
     files = sorted(backup_dir.glob("targets_*.xlsx"), reverse=True)

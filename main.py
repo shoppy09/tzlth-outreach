@@ -19,9 +19,12 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8","utf8"):
 import pandas as pd
 
 BASE_DIR      = Path(__file__).parent
-DATA_FILE     = BASE_DIR / "data" / "targets.xlsx"
+import os as _os
+_data_env     = _os.environ.get("DATA_FILE")
+DATA_FILE     = Path(_data_env) if _data_env else BASE_DIR / "data" / "targets.xlsx"
 TEMPLATES_DIR = BASE_DIR / "templates"
-OUTPUTS_DIR   = BASE_DIR / "outputs"
+_outputs_env  = _os.environ.get("OUTPUTS_DIR")
+OUTPUTS_DIR   = Path(_outputs_env) if _outputs_env else BASE_DIR / "outputs"
 CONFIG_FILE   = BASE_DIR / "config.env"
 
 # ── 顏色 ─────────────────────────────────────────────────────────────────────
@@ -108,15 +111,25 @@ TARGET_COLS = ["ID","單位名稱","單位類型","聯絡人","職稱","Email","
 LOG_COLS    = ["日期","單位ID","單位名稱","聯絡方式","內容摘要","結果"]
 
 # ── 資料管理 ──────────────────────────────────────────────────────────────────
-BACKUP_DIR = BASE_DIR / "data" / "backup"
+BACKUP_DIR = DATA_FILE.parent / "backup"
 
 def ensure_dirs():
-    (BASE_DIR/"data").mkdir(exist_ok=True)
-    BACKUP_DIR.mkdir(exist_ok=True)
+    DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     TEMPLATES_DIR.mkdir(exist_ok=True)
-    OUTPUTS_DIR.mkdir(exist_ok=True)
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
+def _ensure_data():
+    if not DATA_FILE.exists():
+        try:
+            from gcs_sync import download_targets
+            DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+            download_targets(DATA_FILE)
+        except Exception:
+            pass
 
 def init_data():
+    _ensure_data()
     if DATA_FILE.exists():
         # 若舊資料欠新欄位，補上
         df = pd.read_excel(DATA_FILE, sheet_name=TARGET_SHEET)
@@ -136,20 +149,22 @@ def init_data():
     print(f"{G}✓ 資料庫初始化完成，預載 {len(SAMPLE)} 筆目標單位{Z}")
 
 def load_t() -> pd.DataFrame:
+    _ensure_data()
     return pd.read_excel(DATA_FILE, sheet_name=TARGET_SHEET, dtype={"ID":int})
 
 def load_l() -> pd.DataFrame:
+    _ensure_data()
     return pd.read_excel(DATA_FILE, sheet_name=LOG_SHEET)
 
 def _save(df_t, df_l):
     with pd.ExcelWriter(DATA_FILE, engine="openpyxl") as w:
         df_t.to_excel(w, sheet_name=TARGET_SHEET, index=False)
         df_l.to_excel(w, sheet_name=LOG_SHEET, index=False)
-    # 自動同步到 GitHub（Render 雲端持久化）
+    # 自動同步到 GCS（Cloud Run 持久化）
     try:
-        from github_sync import sync_targets
         import threading
-        threading.Thread(target=sync_targets, args=(DATA_FILE,), daemon=True).start()
+        from gcs_sync import upload_targets
+        threading.Thread(target=upload_targets, args=(DATA_FILE,), daemon=True).start()
     except Exception:
         pass
     # 自動備份：每天保留一份，以日期命名
@@ -335,16 +350,22 @@ def _subject(r):
 def _gen_pdf(r):
     try:
         from pdf_gen import generate_proposal
+        import threading
         fname=f"{datetime.now().strftime('%Y%m%d')}_合作提案書_{r['單位名稱']}.pdf"
+        OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
         path=OUTPUTS_DIR/fname
-        generate_proposal(path, target_name=str(r["單位名稱"]), target_type=str(r["單位類型"]))
+        generate_proposal(path, target_name=str(r['單位名稱']), target_type=str(r['單位類型']))
         print(f"{G}✓ PDF 已生成：outputs/{fname}{Z}")
+        # 背景上傳 GCS 持久化
+        try:
+            from gcs_sync import upload_pdf
+            threading.Thread(target=upload_pdf, args=(path, fname), daemon=True).start()
+        except Exception:
+            pass
         return path
     except Exception as e:
         print(f"{Y}⚠ PDF 生成失敗：{e}{Z}")
         return None
-
-# ── 批次發信 ──────────────────────────────────────────────────────────────────
 def batch_send():
     df_t=load_t(); df_l=load_l()
     header("批次發信")

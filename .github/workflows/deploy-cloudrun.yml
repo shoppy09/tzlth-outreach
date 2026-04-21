@@ -1,0 +1,35 @@
+name: Deploy 外展系統 to Cloud Run
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_DEPLOY_SA_KEY }}
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: tzlth-outreach
+          region: asia-east1
+          source: .
+          env_vars: |
+            SENDER_NAME=蒲朝棟
+            GCS_BUCKET=tzlth-outreach-data
+            GCS_SA_KEY_B64=${{ secrets.GCS_SA_KEY_B64 }}
+            SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}
+            SENDER_PASSWORD=${{ secrets.SENDER_PASSWORD }}
+            DATA_FILE=/tmp/targets.xlsx
+            OUTPUTS_DIR=/tmp/outputs
+          flags: --max-instances=1 --memory=512Mi --timeout=120s --allow-unauthenticated
