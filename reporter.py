@@ -40,10 +40,11 @@ def _register_pair(regular_path, bold_path):
     from reportlab.lib.fonts import addMapping
     pdfmetrics.registerFont(TTFont("MSJhei",   regular_path))
     pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
-    pdfmetrics.registerFontFamily(
-        "MSJhei", normal="MSJhei", bold="MSJheiBd",
-        italic="MSJhei", boldItalic="MSJheiBd"
-    )
+    # addMapping(family, bold, italic, psName) — available in all ReportLab 3.x
+    addMapping("MSJhei", 0, 0, "MSJhei")
+    addMapping("MSJhei", 1, 0, "MSJheiBd")
+    addMapping("MSJhei", 0, 1, "MSJhei")
+    addMapping("MSJhei", 1, 1, "MSJheiBd")
 
 def register_fonts():
     import glob

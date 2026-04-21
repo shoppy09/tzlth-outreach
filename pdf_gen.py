@@ -47,10 +47,11 @@ def register_fonts():
             try:
                 pdfmetrics.registerFont(TTFont("MSJhei",   regular))
                 pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
-                pdfmetrics.registerFontFamily(
-                    "MSJhei", normal="MSJhei", bold="MSJheiBd",
-                    italic="MSJhei", boldItalic="MSJheiBd"
-                )
+                from reportlab.lib.fonts import addMapping
+                addMapping("MSJhei", 0, 0, "MSJhei")
+                addMapping("MSJhei", 1, 0, "MSJheiBd")
+                addMapping("MSJhei", 0, 1, "MSJhei")
+                addMapping("MSJhei", 1, 1, "MSJheiBd")
                 return
             except Exception:
                 continue
@@ -61,13 +62,14 @@ def register_fonts():
         matches = glob.glob(pattern, recursive=True)
         if matches:
             try:
+                from reportlab.lib.fonts import addMapping
                 FONT_PATH = FONT_BOLD_PATH = matches[0]
                 pdfmetrics.registerFont(TTFont("MSJhei",   matches[0]))
                 pdfmetrics.registerFont(TTFont("MSJheiBd", matches[0]))
-                pdfmetrics.registerFontFamily(
-                    "MSJhei", normal="MSJhei", bold="MSJheiBd",
-                    italic="MSJhei", boldItalic="MSJheiBd"
-                )
+                addMapping("MSJhei", 0, 0, "MSJhei")
+                addMapping("MSJhei", 1, 0, "MSJheiBd")
+                addMapping("MSJhei", 0, 1, "MSJhei")
+                addMapping("MSJhei", 1, 1, "MSJheiBd")
                 return
             except Exception:
                 continue
