@@ -48,10 +48,14 @@ def register_fonts():
                 pdfmetrics.registerFont(TTFont("MSJhei",   regular))
                 pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
                 from reportlab.lib.fonts import addMapping
-                addMapping("MSJhei", 0, 0, "MSJhei")
-                addMapping("MSJhei", 1, 0, "MSJheiBd")
-                addMapping("MSJhei", 0, 1, "MSJhei")
-                addMapping("MSJhei", 1, 1, "MSJheiBd")
+                addMapping("MSJhei",   0, 0, "MSJhei")
+                addMapping("MSJhei",   1, 0, "MSJheiBd")
+                addMapping("MSJhei",   0, 1, "MSJhei")
+                addMapping("MSJhei",   1, 1, "MSJheiBd")
+                addMapping("MSJheiBd", 0, 0, "MSJheiBd")
+                addMapping("MSJheiBd", 1, 0, "MSJheiBd")
+                addMapping("MSJheiBd", 0, 1, "MSJheiBd")
+                addMapping("MSJheiBd", 1, 1, "MSJheiBd")
                 return
             except Exception:
                 continue
@@ -66,10 +70,14 @@ def register_fonts():
                 FONT_PATH = FONT_BOLD_PATH = matches[0]
                 pdfmetrics.registerFont(TTFont("MSJhei",   matches[0]))
                 pdfmetrics.registerFont(TTFont("MSJheiBd", matches[0]))
-                addMapping("MSJhei", 0, 0, "MSJhei")
-                addMapping("MSJhei", 1, 0, "MSJheiBd")
-                addMapping("MSJhei", 0, 1, "MSJhei")
-                addMapping("MSJhei", 1, 1, "MSJheiBd")
+                addMapping("MSJhei",   0, 0, "MSJhei")
+                addMapping("MSJhei",   1, 0, "MSJheiBd")
+                addMapping("MSJhei",   0, 1, "MSJhei")
+                addMapping("MSJhei",   1, 1, "MSJheiBd")
+                addMapping("MSJheiBd", 0, 0, "MSJheiBd")
+                addMapping("MSJheiBd", 1, 0, "MSJheiBd")
+                addMapping("MSJheiBd", 0, 1, "MSJheiBd")
+                addMapping("MSJheiBd", 1, 1, "MSJheiBd")
                 return
             except Exception:
                 continue
