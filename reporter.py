@@ -35,53 +35,97 @@ LIGHT = colors.HexColor("#F0F5FA")
 GREY  = colors.HexColor("#555555")
 WHITE = colors.white
 
-def _register_pair(regular_path, bold_path):
-    """Register MSJhei/MSJheiBd font pair and declare family mapping."""
+def _add_mappings():
+    """Declare MSJhei / MSJheiBd as ReportLab font families."""
     from reportlab.lib.fonts import addMapping
-    pdfmetrics.registerFont(TTFont("MSJhei",   regular_path))
-    pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
-    # Family mapping for "MSJhei" family (used by <b>/<i> inline tags)
     addMapping("MSJhei",   0, 0, "MSJhei")
     addMapping("MSJhei",   1, 0, "MSJheiBd")
     addMapping("MSJhei",   0, 1, "MSJhei")
     addMapping("MSJhei",   1, 1, "MSJheiBd")
-    # Also map "MSJheiBd" as its own family so ParagraphStyle fontName lookup succeeds
     addMapping("MSJheiBd", 0, 0, "MSJheiBd")
     addMapping("MSJheiBd", 1, 0, "MSJheiBd")
     addMapping("MSJheiBd", 0, 1, "MSJheiBd")
     addMapping("MSJheiBd", 1, 1, "MSJheiBd")
 
+def _register_pair(regular_path, bold_path, subfont_index=None):
+    """Register MSJhei/MSJheiBd font pair (OTF/TTF or TTC with index)."""
+    kwargs = {}
+    if subfont_index is not None:
+        kwargs["subfontIndex"] = subfont_index
+    pdfmetrics.registerFont(TTFont("MSJhei",   regular_path, **kwargs))
+    pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path,   **kwargs))
+    _add_mappings()
+
 def register_fonts():
     import glob
-    candidates = [
-        ("C:/Windows/Fonts/msjh.ttc", "C:/Windows/Fonts/msjhbd.ttc"),
-        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
-        ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
-         "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc"),
+    # Already registered in this process — skip
+    if "MSJhei" in pdfmetrics._fonts:
+        return
+
+    # OTF/TTF single-font candidates (no subfontIndex needed)
+    # Debian python:3.11-slim + fonts-noto-cjk → /usr/share/fonts/opentype/noto/
+    otf_candidates = [
+        ("C:/Windows/Fonts/msjh.ttc",    "C:/Windows/Fonts/msjhbd.ttc"),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+         "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Bold.otf"),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf",
+         "/usr/share/fonts/opentype/noto/NotoSansCJKtc-Bold.otf"),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.otf"),
+        ("/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf",
+         "/usr/share/fonts/truetype/noto/NotoSansCJKsc-Bold.otf"),
         ("/usr/share/fonts/truetype/noto/NotoSansCJKtc-Regular.otf",
          "/usr/share/fonts/truetype/noto/NotoSansCJKtc-Bold.otf"),
         ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
          "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
     ]
-    for regular, bold in candidates:
+    for regular, bold in otf_candidates:
         if Path(regular).exists():
             bold_path = bold if Path(bold).exists() else regular
             try:
                 _register_pair(regular, bold_path)
+                print(f"[fonts] OK (otf): {regular}", file=sys.stderr)
                 return
-            except Exception:
-                continue
-    for pattern in ["/usr/share/fonts/**/*CJK*Regular*.ttc",
-                    "/usr/share/fonts/**/*CJK*Regular*.otf",
-                    "/usr/share/fonts/**/*[Nn]oto*[Cc][Jj][Kk]*.ttc"]:
-        matches = glob.glob(pattern, recursive=True)
-        if matches:
+            except Exception as exc:
+                print(f"[fonts] FAIL {regular}: {exc}", file=sys.stderr)
+
+    # TTC collection candidates — require subfontIndex=0
+    ttc_candidates = [
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
+        ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc"),
+    ]
+    for regular, bold in ttc_candidates:
+        if Path(regular).exists():
+            bold_path = bold if Path(bold).exists() else regular
             try:
-                _register_pair(matches[0], matches[0])
+                _register_pair(regular, bold_path, subfont_index=0)
+                print(f"[fonts] OK (ttc): {regular}", file=sys.stderr)
                 return
-            except Exception:
-                continue
+            except Exception as exc:
+                print(f"[fonts] FAIL TTC {regular}: {exc}", file=sys.stderr)
+
+    # Glob fallback — try OTF first, then TTC
+    for pattern in ["/usr/share/fonts/**/*[Cc][Jj][Kk]*[Ss][Cc]-Regular*.otf",
+                    "/usr/share/fonts/**/*[Cc][Jj][Kk]*Regular*.otf",
+                    "/usr/share/fonts/**/*[Cc][Jj][Kk]*Regular*.ttf",
+                    "/usr/share/fonts/**/*[Cc][Jj][Kk]*.ttc"]:
+        matches = sorted(glob.glob(pattern, recursive=True))
+        print(f"[fonts] glob {pattern}: {matches}", file=sys.stderr)
+        if matches:
+            m = matches[0]
+            try:
+                if m.lower().endswith(".ttc"):
+                    _register_pair(m, m, subfont_index=0)
+                else:
+                    _register_pair(m, m)
+                print(f"[fonts] OK (glob): {m}", file=sys.stderr)
+                return
+            except Exception as exc:
+                print(f"[fonts] FAIL glob {m}: {exc}", file=sys.stderr)
+
+    print("[fonts] WARNING: no CJK font registered — PDF will crash", file=sys.stderr)
 
 def make_styles():
     return {

@@ -649,6 +649,39 @@ def api_today_todos():
         "count":   int(len(overdue)) + int(len(today_due))
     })
 
+# ── 路由：字體診斷（Cloud Run 除錯用）────────────────────────────────────────
+@app.route("/debug/fonts")
+def debug_fonts():
+    import glob, os, traceback
+    from pathlib import Path
+    font_files = sorted(f for f in glob.glob("/usr/share/fonts/**/*", recursive=True)
+                        if os.path.isfile(f) and f.lower().endswith((".ttf",".otf",".ttc")))
+    attempts = []
+    test_paths = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJKsc-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJKtc-Regular.otf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.otf",
+        "/usr/share/fonts/truetype/noto/NotoSansCJKsc-Regular.otf",
+    ]
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+    for p in test_paths:
+        if Path(p).exists():
+            try:
+                TTFont("_dbg", p)
+                attempts.append({"path": p, "result": "ok"})
+            except Exception as exc:
+                try:
+                    TTFont("_dbg", p, subfontIndex=0)
+                    attempts.append({"path": p, "result": f"ok_with_index0 (plain failed: {exc})"})
+                except Exception as exc2:
+                    attempts.append({"path": p, "result": f"fail: {exc2}"})
+        else:
+            attempts.append({"path": p, "result": "not_found"})
+    return jsonify({"font_files": font_files, "attempts": attempts,
+                    "msjhei_registered": "MSJhei" in pdfmetrics._fonts})
+
 # ── 路由：API ─────────────────────────────────────────────────────────────────
 @app.route("/api/stats")
 def api_stats():
