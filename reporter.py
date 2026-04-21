@@ -36,8 +36,38 @@ GREY  = colors.HexColor("#555555")
 WHITE = colors.white
 
 def register_fonts():
-    pdfmetrics.registerFont(TTFont("MSJhei",   "C:/Windows/Fonts/msjh.ttc"))
-    pdfmetrics.registerFont(TTFont("MSJheiBd", "C:/Windows/Fonts/msjhbd.ttc"))
+    import glob
+    candidates = [
+        ("C:/Windows/Fonts/msjh.ttc", "C:/Windows/Fonts/msjhbd.ttc"),
+        ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc"),
+        ("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+         "/usr/share/fonts/noto-cjk/NotoSansCJK-Bold.ttc"),
+        ("/usr/share/fonts/truetype/noto/NotoSansCJKtc-Regular.otf",
+         "/usr/share/fonts/truetype/noto/NotoSansCJKtc-Bold.otf"),
+        ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
+    ]
+    for regular, bold in candidates:
+        if Path(regular).exists():
+            bold_path = bold if Path(bold).exists() else regular
+            try:
+                pdfmetrics.registerFont(TTFont("MSJhei",   regular))
+                pdfmetrics.registerFont(TTFont("MSJheiBd", bold_path))
+                return
+            except Exception:
+                continue
+    for pattern in ["/usr/share/fonts/**/*CJK*Regular*.ttc",
+                    "/usr/share/fonts/**/*CJK*Regular*.otf",
+                    "/usr/share/fonts/**/*[Nn]oto*[Cc][Jj][Kk]*.ttc"]:
+        matches = glob.glob(pattern, recursive=True)
+        if matches:
+            try:
+                pdfmetrics.registerFont(TTFont("MSJhei",   matches[0]))
+                pdfmetrics.registerFont(TTFont("MSJheiBd", matches[0]))
+                return
+            except Exception:
+                continue
 
 def make_styles():
     return {
