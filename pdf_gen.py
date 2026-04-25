@@ -370,7 +370,7 @@ def generate_proposal(output_path: str | Path, target_name: str = "", target_typ
     story.append(Spacer(1, 0.3 * cm))
     contact_data = [[
         Paragraph("📧  shoppy09@gmail.com", styles["contact"]),
-        Paragraph("🌐  tzlth-website.vercel.app", styles["contact"]),
+        Paragraph("🌐  www.careerssl.com", styles["contact"]),
         Paragraph("💬  LINE：lin.ee/IOX6V66", styles["contact"]),
         Paragraph("📍  桃園（線上 / 面談皆可）", styles["contact"]),
     ]]
